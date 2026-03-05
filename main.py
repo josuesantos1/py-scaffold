@@ -1,16 +1,26 @@
 import time
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.admin.view import router as admin_router
+from config.database import engine
 from config.exceptions import AppException, app_exception_handler, generic_exception_handler
 from config.log import setup_logging
 from config.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from config.settings import settings
 
-setup_logging()
+_SKIP_METRICS = {"/admin/health", "/admin/ready", "/admin/metrics"}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    setup_logging()
+    yield
+    await engine.dispose()
+
 
 logger = structlog.get_logger()
 
@@ -19,6 +29,7 @@ app = FastAPI(
     version=settings.app_version,
     docs_url="/docs",
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 # Exception handlers
@@ -29,7 +40,7 @@ app.add_exception_handler(Exception, generic_exception_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
-    allow_credentials=True,
+    allow_credentials=settings.cors_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -37,10 +48,11 @@ app.add_middleware(
 
 @app.middleware("http")
 async def metrics_middleware(request: Request, call_next):
+    if request.url.path in _SKIP_METRICS:
+        return await call_next(request)
+
     start = time.time()
-
     response = await call_next(request)
-
     latency = time.time() - start
 
     REQUEST_COUNT.labels(
