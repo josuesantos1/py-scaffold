@@ -1,5 +1,5 @@
 PYTHON=python
-APP=app.main:app
+APP=main:app
 PORT=8000
 
 .PHONY: help install run dev lint format security audit semgrep trivy test docker-build docker-run clean

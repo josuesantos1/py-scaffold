@@ -1,6 +1,8 @@
-def main():
-    print("Hello from py-scaffold!")
+from fastapi import FastAPI
 
-
-if __name__ == "__main__":
-    main()
+app = FastAPI(
+    title="Py-Scaffold API",
+    version="0.1.0",
+    docs_url="/docs",
+    redoc_url=None,
+)
