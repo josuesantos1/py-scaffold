@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: list[str] = ["*"]
+    cors_allow_credentials: bool = False
 
     # Logging
     log_level: str = "INFO"
