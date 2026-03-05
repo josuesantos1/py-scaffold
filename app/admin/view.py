@@ -7,7 +7,7 @@ router = APIRouter()
 # ALert: add auth to routes
 
 @router.get("/")
-def root():
+async def root():
     return {"admin": "Hello"}
 
 
