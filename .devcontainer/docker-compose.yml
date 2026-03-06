@@ -1,14 +1,12 @@
-services:
+version: "3.9"
 
+services:
   api:
-    build: .
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
     container_name: fastapi-api
-    ports:
-      - "8000:8000"
-    volumes:
-      - .:/workspace
-    working_dir: /workspace
-    command: make dev
+    command: ["uv", "run", "granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8000", "main:app"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -16,51 +14,59 @@ services:
       DATABASE_URL: postgresql+asyncpg://app:app@postgres:5432/app
     networks:
       - backend
-
-  postgres:
-    image: postgres:16
-    container_name: postgres
-    restart: always
-    environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-      POSTGRES_DB: app
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d app"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - backend
+      - "8000:8000"
+    volumes:
+      - ..:/workspace:cached
+    working_dir: /workspace
 
   nginx:
-    image: nginx:latest
     container_name: nginx
+    depends_on:
+      api:
+        condition: service_started
+    image: nginx:latest
+    networks:
+      - backend
     ports:
       - "80:80"
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - api
+      - ../infra/nginx/nginx.conf:/etc/nginx/nginx.conf
+
+  postgres:
+    container_name: postgres
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      retries: 5
+      timeout: 5s
+    image: postgres:16
     networks:
       - backend
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
 
   prometheus:
-    image: prom/prometheus
     container_name: prometheus
+    image: prom/prometheus
+    networks:
+      - backend
     ports:
       - "9090:9090"
     volumes:
-      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - backend
+      - ../infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
 
 networks:
   backend:
+    name: devcontainer_backend
 
 volumes:
   postgres_data:
+    name: devcontainer_postgres_data
