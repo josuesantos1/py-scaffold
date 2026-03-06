@@ -1,4 +1,3 @@
-PYTHON=python
 APP=main:app
 PORT=8000
 
@@ -59,7 +58,7 @@ trivy:
 	trivy fs . --scanners vuln,secret,misconfig
 
 docker-build:
-	docker build -t py-scaffold .
+	docker build -f prod/Dockerfile -t py-scaffold .
 
 docker-run:
 	docker run --rm -p 8000:8000 py-scaffold
