@@ -1,11 +1,13 @@
 import time
+import uuid
 from contextlib import asynccontextmanager
 
-import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from app.admin.view import router as admin_router
+from app.example.view import router as example_router
 from config.database import engine
 from config.exceptions import AppException, app_exception_handler, generic_exception_handler
 from config.log import setup_logging
@@ -21,8 +23,6 @@ async def lifespan(app: FastAPI):
     yield
     await engine.dispose()
 
-
-logger = structlog.get_logger()
 
 app = FastAPI(
     title=settings.app_name,
@@ -66,4 +66,12 @@ async def metrics_middleware(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def request_id_middleware(request: Request, call_next):
+    clear_contextvars()
+    bind_contextvars(request_id=str(uuid.uuid4()))
+    return await call_next(request)
+
+
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
+app.include_router(example_router, prefix="/items", tags=["items"])
