@@ -29,8 +29,11 @@ Modern Python API scaffold with FastAPI, SQLAlchemy, Alembic, and comprehensive 
 # Install dependencies
 make install
 
-# Copy environment file
+# Copy environment file (Linux/macOS)
 cp .env.example .env
+
+# Copy environment file (Windows PowerShell)
+Copy-Item .env.example .env
 
 # Run in development mode
 make dev
@@ -52,28 +55,29 @@ make test           # Run tests with coverage (80% minimum)
 make check          # Run all checks (lint + typecheck + security + audit + test)
 make trivy          # Scan with Trivy
 make clean          # Clean cache files
+make ci             # Run check + trivy
 ```
 
 ## Project Structure
 
 ```
 .
- app/                    # Application modules
-    admin/             # Admin module example
-        view.py        # Routes
-            __init__.py
- config/                # Configuration
-    database.py        # Database setup
-    exceptions.py      # Exception handlers
-    log.py            # Logging configuration
-    metrics.py        # Prometheus metrics
-    models.py         # SQLAlchemy base
-    settings.py       # Pydantic settings
- migrations/            # Alembic migrations
- tests/                 # Test suite
- main.py               # Application entrypoint
- Makefile              # Development commands
- pyproject.toml        # Project dependencies
+├── app/                  # Application modules
+│   ├── admin/
+│   ├── example/
+│   └── teste/
+├── config/               # Configuration
+│   ├── database.py       # Database session/engine
+│   ├── exceptions.py     # Exception handlers
+│   ├── log.py            # Structured logging setup
+│   ├── metrics.py        # Prometheus collectors
+│   └── settings.py       # Pydantic settings
+├── migrations/           # Alembic migrations
+├── tests/                # Test suite
+├── main.py               # FastAPI entrypoint
+├── manager.py            # App/CI scaffolding helper
+├── Makefile              # Development commands
+└── pyproject.toml        # Dependencies and tool config
 ```
 
 ## Configuration
@@ -112,9 +116,9 @@ alembic downgrade -1
 
 ## Endpoints
 
-- `GET /health` - Health check
-- `GET /ready` - Readiness probe
-- `GET /metrics` - Prometheus metrics
+- `GET /admin/health` - Health check
+- `GET /admin/ready` - Readiness probe
+- `GET /admin/metrics` - Prometheus metrics
 - `GET /docs` - OpenAPI documentation
 
 ## Testing
@@ -124,10 +128,10 @@ alembic downgrade -1
 make test
 
 # Run tests with verbose output
-pytest -v
+uv run pytest -v
 
 # Run specific test
-pytest tests/test_health.py
+uv run pytest tests/test_health.py
 ```
 
 ## CI/CD
