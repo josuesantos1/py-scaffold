@@ -25,32 +25,32 @@ install:
 	uv sync
 
 run:
-	granian --interface asgi --host 0.0.0.0 --port $(PORT) $(APP)
+	uv run granian --interface asgi --host 0.0.0.0 --port $(PORT) $(APP)
 
 dev:
-	granian --reload --interface asgi --host 0.0.0.0 --port $(PORT) $(APP)
+	uv run granian --reload --interface asgi --host 0.0.0.0 --port $(PORT) $(APP)
 
 lint:
-	ruff check .
+	uv run ruff check .
 
 format:
-	ruff format .
+	uv run ruff format .
 
 fix:
-	ruff check . --fix
-	ruff format .
+	uv run ruff check . --fix
+	uv run ruff format .
 
 typecheck:
-	pyright
+	uv run pyright
 
 security:
-	bandit -r app -ll
+	uv run bandit -r app -ll
 
 audit:
-	pip-audit --desc
+	uv run pip-audit --desc
 
 test:
-	pytest -q --cov=app --cov-report=term-missing --cov-fail-under=80
+	uv run pytest -q --cov=app --cov-report=term-missing --cov-fail-under=80
 
 check: lint typecheck security audit test
 
