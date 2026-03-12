@@ -50,12 +50,21 @@ def create_ci_workflow(app_name: str, skip_validation: bool = False) -> None:
 
     workflow_content = f"""name: {app_name.capitalize()} App - CI
 
+permissions:
+  contents: read
+
+concurrency:
+  group: {app_name}-ci-${{{{ github.ref }}}}
+  cancel-in-progress: true
+
 on:
   push:
     branches: [main]
     paths:
       - 'app/{app_name}/**'
       - 'tests/{app_name}/**'
+      - 'tests/test_{app_name}.py'
+      - 'tests/conftest.py'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/{app_name}-ci.yml'
@@ -64,6 +73,8 @@ on:
     paths:
       - 'app/{app_name}/**'
       - 'tests/{app_name}/**'
+      - 'tests/test_{app_name}.py'
+      - 'tests/conftest.py'
       - 'pyproject.toml'
       - 'uv.lock'
       - '.github/workflows/{app_name}-ci.yml'
@@ -87,7 +98,19 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --frozen
+
+      - name: Resolve test target
+        id: tests
+        shell: bash
+        run: |
+          if [ -d "tests/{app_name}" ]; then
+            echo "target=tests/{app_name}" >> "$GITHUB_OUTPUT"
+          elif [ -f "tests/test_{app_name}.py" ]; then
+            echo "target=tests/test_{app_name}.py" >> "$GITHUB_OUTPUT"
+          else
+            echo "target=tests" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Run Ruff lint
         run: uv run ruff check app/{app_name}
@@ -103,7 +126,7 @@ jobs:
 
       - name: Run tests
         run: >
-          uv run pytest tests/{app_name} -v --cov=app/{app_name}
+          uv run pytest ${{{{ steps.tests.outputs.target }}}} -v --cov=app/{app_name}
           --cov-report=term-missing --cov-fail-under=80
 """
 

@@ -19,6 +19,14 @@ from config.settings import settings
 _SKIP_METRICS = {"/admin/health", "/admin/ready", "/admin/metrics"}
 
 
+def _metrics_endpoint(request: Request) -> str:
+    route = request.scope.get("route")
+    route_path = getattr(route, "path", None)
+    if isinstance(route_path, str):
+        return route_path
+    return request.url.path
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
@@ -61,14 +69,15 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
     start = time.time()
     response = await call_next(request)
     latency = time.time() - start
+    endpoint = _metrics_endpoint(request)
 
     REQUEST_COUNT.labels(
         request.method,
-        request.url.path,
-        response.status_code,
+        endpoint,
+        str(response.status_code),
     ).inc()
 
-    REQUEST_LATENCY.labels(request.url.path).observe(latency)
+    REQUEST_LATENCY.labels(endpoint).observe(latency)
 
     return response
 

@@ -64,11 +64,6 @@ docker-run:
 	docker run --rm -p 8000:8000 py-scaffold
 
 clean:
-	find . -type d -name "__pycache__" -exec rm -r {} +
-	find . -type f -name "*.pyc" -delete
-	rm -rf .pytest_cache
-	rm -rf .ruff_cache
-	rm -rf .mypy_cache
-	rm -rf dist build .coverage
+	uv run python -c "import pathlib, shutil; root = pathlib.Path('.'); [shutil.rmtree(p, ignore_errors=True) for p in root.rglob('__pycache__') if p.is_dir()]; [p.unlink(missing_ok=True) for p in root.rglob('*.pyc') if p.is_file()]; [shutil.rmtree(root / d, ignore_errors=True) for d in ('.pytest_cache', '.ruff_cache', '.mypy_cache', 'dist', 'build')]; (root / '.coverage').unlink(missing_ok=True)"
 
 ci: check trivy
