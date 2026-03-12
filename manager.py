@@ -160,9 +160,7 @@ Examples:
     create_app_parser.add_argument(
         "--with-ci", action="store_true", help="Automatically create CI workflow"
     )
-    create_app_parser.add_argument(
-        "--no-ci", action="store_true", help="Skip CI workflow creation"
-    )
+    create_app_parser.add_argument("--no-ci", action="store_true", help="Skip CI workflow creation")
 
     # create-ci command
     create_ci_parser = subparsers.add_parser("create-ci", help="Create CI workflow for an app")
