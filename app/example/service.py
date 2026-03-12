@@ -9,7 +9,7 @@ logger = structlog.get_logger()
 
 async def get_items(session: AsyncSession) -> list[Item]:
     result = await session.exec(select(Item))
-    return result.all()
+    return list(result.all())
 
 
 async def get_item(session: AsyncSession, item_id: int) -> Item | None:

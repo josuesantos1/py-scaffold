@@ -1,9 +1,11 @@
 import time
 import uuid
 from contextlib import asynccontextmanager
+from typing import cast
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import RequestResponseEndpoint
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from app.admin.view import router as admin_router
@@ -32,8 +34,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+async def app_exception_handler_adapter(request: Request, exc: Exception):
+    return await app_exception_handler(request, cast(AppException, exc))
+
+
 # Exception handlers
-app.add_exception_handler(AppException, app_exception_handler)
+app.add_exception_handler(AppException, app_exception_handler_adapter)
 app.add_exception_handler(Exception, generic_exception_handler)
 
 # CORS
@@ -47,7 +54,7 @@ app.add_middleware(
 
 
 @app.middleware("http")
-async def metrics_middleware(request: Request, call_next):
+async def metrics_middleware(request: Request, call_next: RequestResponseEndpoint):
     if request.url.path in _SKIP_METRICS:
         return await call_next(request)
 
@@ -67,7 +74,7 @@ async def metrics_middleware(request: Request, call_next):
 
 
 @app.middleware("http")
-async def request_id_middleware(request: Request, call_next):
+async def request_id_middleware(request: Request, call_next: RequestResponseEndpoint):
     clear_contextvars()
     bind_contextvars(request_id=str(uuid.uuid4()))
     return await call_next(request)
