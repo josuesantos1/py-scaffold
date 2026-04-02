@@ -28,29 +28,7 @@ on:
       - '.github/workflows/example-ci.yml'
 
 jobs:
-  check-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.filter.outputs.example }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Check for changes
-        uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            example:
-              - 'app/example/**'
-              - 'tests/test_example.py'
-              - 'tests/conftest.py'
-              - 'pyproject.toml'
-              - 'uv.lock'
-
   lint-and-test:
-    needs: check-changes
-    if: needs.check-changes.outputs.should_run == 'true'
     runs-on: ubuntu-latest
 
     steps:
