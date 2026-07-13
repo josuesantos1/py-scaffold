@@ -118,27 +118,29 @@ def create_app(app_name: str, with_ci: bool = False, no_ci: bool = False) -> Non
             f"from app.{app_name}.model import {model_name}\n"
             "from config.database import get_db\n\n"
             f"_app = FastAPI()\n"
-            f"_app.include_router({app_name}_view.router, prefix=\"/{app_name}\")\n\n\n"
+            f'_app.include_router({app_name}_view.router, prefix="/{app_name}")\n\n\n'
             "@pytest.fixture\n"
             f"async def {app_name}_client():\n"
-            "    async with AsyncClient(transport=ASGITransport(app=_app), base_url=\"http://test\") as ac:\n"
+            "    async with AsyncClient(\n"
+            '        transport=ASGITransport(app=_app), base_url="http://test"\n'
+            "    ) as ac:\n"
             "        yield ac\n\n\n"
             f"async def test_list_{app_name}_endpoint({app_name}_client, monkeypatch):\n"
-            f"    fake_items = [{model_name}(id=1, name=\"example\")]\n\n"
+            f'    fake_items = [{model_name}(id=1, name="example")]\n\n'
             "    async def fake_get_all(_session):\n"
             "        return fake_items\n\n"
             "    async def override_get_db():\n"
             "        yield object()\n\n"
-            f"    monkeypatch.setattr({app_name}_view.service, \"get_all\", fake_get_all)\n"
+            f'    monkeypatch.setattr({app_name}_view.service, "get_all", fake_get_all)\n'
             "    _app.dependency_overrides[get_db] = override_get_db\n\n"
             "    try:\n"
-            f"        response = await {app_name}_client.get(\"/{app_name}/\")\n"
+            f'        response = await {app_name}_client.get("/{app_name}/")\n'
             "    finally:\n"
             "        _app.dependency_overrides.pop(get_db, None)\n\n"
             "    assert response.status_code == 200\n"
             "    assert isinstance(response.json(), list)\n\n\n"
             f"async def test_service_get_all_returns_all():\n"
-            f"    expected = [{model_name}(id=1, name=\"example\")]\n\n"
+            f'    expected = [{model_name}(id=1, name="example")]\n\n'
             "    class Result:\n"
             "        def all(self):\n"
             "            return expected\n\n"
