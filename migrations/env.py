@@ -1,5 +1,7 @@
 import asyncio
+import importlib
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import pool
@@ -7,8 +9,13 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlmodel import SQLModel
 
-import app.example.model  # noqa: F401 — registra tabelas no SQLModel.metadata
 from config.settings import settings
+
+# Auto-discover and import every app/*/model.py so their tables are registered
+# in SQLModel.metadata before autogenerate runs.
+for _model_path in sorted(Path(__file__).parent.parent.glob("app/*/model.py")):
+    _module = ".".join(_model_path.with_suffix("").parts[-3:])  # e.g. app.example.model
+    importlib.import_module(_module)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
