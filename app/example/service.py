@@ -19,7 +19,7 @@ async def get_item(session: AsyncSession, item_id: int) -> Item | None:
 async def create_item(session: AsyncSession, payload: ItemCreate) -> Item:
     item = Item.model_validate(payload)
     session.add(item)
-    await session.commit()
+    await session.flush()
     await session.refresh(item)
     logger.info("item_created", id=item.id, name=item.name)
     return item

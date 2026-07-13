@@ -92,7 +92,7 @@ async def test_service_get_item_by_id():
     assert result == expected
 
 
-async def test_service_create_item_commits_and_refreshes():
+async def test_service_create_item_flushes_and_refreshes():
     session = AsyncMock()
     session.add = MagicMock()
     payload = ItemCreate(name="lamp", description="desk")
@@ -105,7 +105,7 @@ async def test_service_create_item_commits_and_refreshes():
     created = await service.create_item(session, payload)
 
     session.add.assert_called_once()
-    session.commit.assert_awaited_once()
+    session.flush.assert_awaited_once()
     session.refresh.assert_awaited_once()
     assert created.id == 42
     assert created.name == "lamp"
