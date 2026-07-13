@@ -67,11 +67,11 @@ def create_app(app_name: str, with_ci: bool = False, no_ci: bool = False) -> Non
             f'"""Models for {app_name} app."""\n\n'
             "from sqlmodel import Field, SQLModel\n\n\n"
             f"class {model_name}(SQLModel, table=True):\n"
-            '    """TODO: Define your model."""\n'
+            '    """TODO: Define your model."""\n\n'
             "    id: int | None = Field(default=None, primary_key=True)\n"
             "    name: str\n\n\n"
             f"class {model_name}Create(SQLModel):\n"
-            '    """Schema for creating new records."""\n'
+            '    """Schema for creating new records."""\n\n'
             "    name: str\n"
         )
 
@@ -109,9 +109,43 @@ def create_app(app_name: str, with_ci: bool = False, no_ci: bool = False) -> Non
         # Create test file
         (tests_dir / f"test_{app_name}.py").write_text(
             f'"""Tests for {app_name} app."""\n\n'
-            f"def test_{app_name}_placeholder() -> None:\n"
-            '    """Placeholder test - replace with actual tests."""\n'
-            "    assert True\n"
+            "from unittest.mock import AsyncMock\n\n"
+            "import pytest\n"
+            "from fastapi import FastAPI\n"
+            "from httpx import ASGITransport, AsyncClient\n\n"
+            f"from app.{app_name} import service\n"
+            f"from app.{app_name} import view as {app_name}_view\n"
+            f"from app.{app_name}.model import {model_name}\n"
+            "from config.database import get_db\n\n"
+            f"_app = FastAPI()\n"
+            f"_app.include_router({app_name}_view.router, prefix=\"/{app_name}\")\n\n\n"
+            "@pytest.fixture\n"
+            f"async def {app_name}_client():\n"
+            "    async with AsyncClient(transport=ASGITransport(app=_app), base_url=\"http://test\") as ac:\n"
+            "        yield ac\n\n\n"
+            f"async def test_list_{app_name}_endpoint({app_name}_client, monkeypatch):\n"
+            f"    fake_items = [{model_name}(id=1, name=\"example\")]\n\n"
+            "    async def fake_get_all(_session):\n"
+            "        return fake_items\n\n"
+            "    async def override_get_db():\n"
+            "        yield object()\n\n"
+            f"    monkeypatch.setattr({app_name}_view.service, \"get_all\", fake_get_all)\n"
+            "    _app.dependency_overrides[get_db] = override_get_db\n\n"
+            "    try:\n"
+            f"        response = await {app_name}_client.get(\"/{app_name}/\")\n"
+            "    finally:\n"
+            "        _app.dependency_overrides.pop(get_db, None)\n\n"
+            "    assert response.status_code == 200\n"
+            "    assert isinstance(response.json(), list)\n\n\n"
+            f"async def test_service_get_all_returns_all():\n"
+            f"    expected = [{model_name}(id=1, name=\"example\")]\n\n"
+            "    class Result:\n"
+            "        def all(self):\n"
+            "            return expected\n\n"
+            "    session = AsyncMock()\n"
+            "    session.exec = AsyncMock(return_value=Result())\n\n"
+            "    result = await service.get_all(session)\n\n"
+            "    assert result == expected\n"
         )
 
         print("✓ Created app structure:")
