@@ -20,7 +20,7 @@ Modern Python API scaffold with FastAPI, SQLAlchemy, Alembic, and comprehensive 
 
 1. Open in VSCode
 2. Click "Reopen in Container"
-3. Dependencies install automatically via `postStartCommand`
+3. Dependencies install automatically via `postCreateCommand`
 4. Run: `make dev`
 
 ### Local Development
@@ -64,8 +64,7 @@ make ci             # Run check + trivy
 .
 ├── app/                  # Application modules
 │   ├── admin/
-│   ├── example/
-│   └── teste/
+│   └── example/
 ├── config/               # Configuration
 │   ├── database.py       # Database session/engine
 │   ├── exceptions.py     # Exception handlers
