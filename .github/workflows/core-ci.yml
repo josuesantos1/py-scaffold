@@ -1,0 +1,68 @@
+name: Core - CI
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'main.py'
+      - 'config/**'
+      - 'migrations/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/core-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'main.py'
+      - 'config/**'
+      - 'migrations/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/core-ci.yml'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Ruff lint
+        run: uv run ruff check .
+
+      - name: Run Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Run Pyright
+        run: uv run pyright
+
+      - name: Run Bandit security check
+        run: uv run bandit -r app -ll
+
+      - name: Run tests
+        run: >
+          uv run pytest -v --cov=app
+          --cov-report=term-missing --cov-fail-under=80
