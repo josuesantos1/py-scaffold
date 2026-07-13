@@ -1,4 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Annotated
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -12,12 +15,19 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://user:password@localhost:5432/dbname"
 
-    # CORS
-    cors_origins: list[str] = ["*"]
+    # CORS — accepts a comma-separated string (e.g. CORS_ORIGINS=* or CORS_ORIGINS=http://a.com,http://b.com)
+    cors_origins: Annotated[list[str], NoDecode] = ["*"]
     cors_allow_credentials: bool = False
 
     # Logging
     log_level: str = "INFO"
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: object) -> object:
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
+        return v
 
 
 settings = Settings()
