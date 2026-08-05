@@ -7,17 +7,17 @@
   "workspaceFolder": "/workspace",
   "shutdownAction": "stopCompose",
   "customizations": {
-    "vscode": {
+    "scaffold": {
       "settings": {
         "terminal.integrated.shell.linux": "/bin/bash"
       },
       "extensions": [
         "ms-python.python",
-        "ms-azuretools.vscode-docker",
-        "ms-python.vscode-pylance"
+        "ms-azuretools.scaffold-docker",
+        "ms-python.scaffold-pylance"
       ]
     }
   },
   "postCreateCommand": "uv sync",
-  "remoteUser": "vscode"
+  "remoteUser": "scaffold"
 }

@@ -1,7 +1,7 @@
 APP=main:app
-PORT=8000
+PORT=1112
 
-.PHONY: help install run dev lint format fix typecheck security audit vulture test check trivy docker-build docker-run clean
+.PHONY: help install run dev lint format fix typecheck security audit vulture test check trivy docker-build docker-run clean k6-smoke k6-load k6-stress k6-soak benchmark
 
 help:
 	@echo "Available commands:"
@@ -21,6 +21,11 @@ help:
 	@echo " docker-build   Build Docker image"
 	@echo " docker-run     Run Docker container"
 	@echo " clean          Clean cache"
+	@echo " k6-smoke       k6 smoke test  (1 VU, 30 s)"
+	@echo " k6-load        k6 load test   (50 VUs, 5 m ramp)"
+	@echo " k6-stress      k6 stress test (up to 300 VUs)"
+	@echo " k6-soak        k6 soak test   (20 VUs, 13 m)"
+	@echo " benchmark      pytest msgspec benchmarks"
 
 install:
 	uv sync
@@ -65,9 +70,24 @@ docker-build:
 	docker build -f prod/Dockerfile -t py-scaffold .
 
 docker-run:
-	docker run --rm -p 8000:8000 py-scaffold
+	docker run --rm -p 1112:1112 py-scaffold
 
 clean:
 	uv run python -c "import pathlib, shutil; root = pathlib.Path('.'); [shutil.rmtree(p, ignore_errors=True) for p in root.rglob('__pycache__') if p.is_dir()]; [p.unlink(missing_ok=True) for p in root.rglob('*.pyc') if p.is_file()]; [shutil.rmtree(root / d, ignore_errors=True) for d in ('.pytest_cache', '.ruff_cache', '.mypy_cache', 'dist', 'build')]; (root / '.coverage').unlink(missing_ok=True)"
+
+k6-smoke:
+	k6 run load-tests/k6/smoke.js
+
+k6-load:
+	k6 run load-tests/k6/load.js
+
+k6-stress:
+	k6 run load-tests/k6/stress.js
+
+k6-soak:
+	k6 run load-tests/k6/soak.js
+
+benchmark:
+	uv run pytest tests/benchmarks/ --benchmark-only -v
 
 ci: check trivy

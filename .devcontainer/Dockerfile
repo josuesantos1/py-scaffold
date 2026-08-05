@@ -7,7 +7,7 @@ WORKDIR /workspace
 RUN apt-get update && apt-get install -y make \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd -r vscode && useradd -r -g vscode -m -s /bin/bash vscode
+RUN groupadd -r scaffold && useradd -r -g scaffold -m -s /bin/bash scaffold
 
 RUN pip install uv
 
@@ -17,10 +17,10 @@ RUN uv sync --frozen --no-dev
 
 COPY . .
 
-RUN chown -R vscode:vscode /workspace
+RUN chown -R scaffold:scaffold /workspace
 
-USER vscode
+USER scaffold
 
-EXPOSE 8000
+EXPOSE 1112
 
-CMD ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8000", "main:app"]
+CMD ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "1112", "main:app"]

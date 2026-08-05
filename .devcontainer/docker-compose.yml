@@ -4,7 +4,7 @@ services:
       context: ..
       dockerfile: .devcontainer/Dockerfile
     container_name: fastapi-api
-    command: ["uv", "run", "granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8000", "main:app"]
+    command: ["uv", "run", "granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "1112", "main:app"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -13,7 +13,7 @@ services:
     networks:
       - backend
     ports:
-      - "8000:8000"
+      - "1112:1112"
     volumes:
       - ..:/workspace:cached
     working_dir: /workspace
