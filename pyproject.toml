@@ -1,33 +1,47 @@
 [project]
 name = "py-scaffold"
 version = "0.1.0"
-description = "Add your description here"
+description = "High-performance Python API scaffold: BlackSheep + Granian + AsyncPG + msgspec"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "alembic>=1.18.4",
     "asyncpg>=0.31.0",
-    "fastapi>=0.135.1",
+    "blacksheep>=2.0",
     "granian>=2.7.2",
-    "httpx>=0.28.1",
+    "msgspec>=0.18",
+    "opentelemetry-api>=1.27",
     "orjson>=3.11.7",
     "prometheus-client>=0.24.1",
-    "pydantic-settings>=2.7.1",
-    "sqlmodel>=0.0.37",
     "structlog>=25.5.0",
 ]
 
+[project.optional-dependencies]
+performance = ["uvloop>=0.21"]
+observability = [
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp>=1.27",
+    "opentelemetry-instrumentation-asgi>=0.48b0",
+]
+loadtest = ["locust>=2.0"]
+
 [dependency-groups]
 dev = [
-    "aiosqlite>=0.22.1",
     "bandit>=1.9.4",
+    "faker>=30.0",
     "granian[reload]>=2.7.2",
+    "httpx>=0.28.1",
+    "hypothesis>=6.0",
     "pip-audit>=2.9.0",
-    "pyright>=1.1.408",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
+    "pytest-benchmark>=5.0",
     "pytest-cov>=7.0.0",
+    "pyright>=1.1.408",
+    "rich>=13.0",
     "ruff>=0.15.4",
+    "typer>=0.12",
+    "vulture>=2.0",
 ]
 
 [tool.ruff]
@@ -36,26 +50,33 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle
-    "F",   # pyflakes
-    "B",   # bugbear
-    "UP",  # pyupgrade
-    "S",   # security
-    "I",   # import sort
-    "SIM", # simplifications
-    "C4",  # comprehensions
+    "E",
+    "F",
+    "B",
+    "UP",
+    "S",
+    "I",
+    "SIM",
+    "C4",
+    "C90",
 ]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101"]
-"app/*/view.py" = ["B008"]
+"manager.py" = ["S603", "S607", "S608"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 
-
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--benchmark-disable"
 
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"

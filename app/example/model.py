@@ -1,12 +1,18 @@
-from sqlmodel import Field, SQLModel
+"""msgspec Structs for the example app."""
+
+import msgspec
 
 
-class Item(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
+class ItemCreate(msgspec.Struct):
     name: str
     description: str | None = None
 
 
-class ItemCreate(SQLModel):
+class Item(msgspec.Struct, frozen=True, gc=False):
+    id: int
     name: str
     description: str | None = None
+
+
+item_decoder = msgspec.json.Decoder(ItemCreate)
+item_encoder = msgspec.json.Encoder()

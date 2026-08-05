@@ -1,25 +1,41 @@
+"""Business logic for the example app."""
+
+import asyncpg
 import structlog
-from sqlmodel import select
-from sqlmodel.ext.asyncio.session import AsyncSession
+from opentelemetry import trace
 
 from app.example.model import Item, ItemCreate
 
 logger = structlog.get_logger()
+tracer = trace.get_tracer("app.example")
 
 
-async def get_items(session: AsyncSession) -> list[Item]:
-    result = await session.exec(select(Item))
-    return list(result.all())
+async def get_items(conn: asyncpg.Connection) -> list[Item]:  # type: ignore[type-arg]
+    with tracer.start_as_current_span("db.get_items"):
+        rows = await conn.fetch("SELECT id, name, description FROM items ORDER BY id")
+    return [Item(id=r["id"], name=r["name"], description=r["description"]) for r in rows]
 
 
-async def get_item(session: AsyncSession, item_id: int) -> Item | None:
-    return await session.get(Item, item_id)
+async def get_item(conn: asyncpg.Connection, item_id: int) -> Item | None:  # type: ignore[type-arg]
+    with tracer.start_as_current_span("db.get_item") as span:
+        span.set_attribute("item.id", item_id)
+        row = await conn.fetchrow(
+            "SELECT id, name, description FROM items WHERE id = $1",
+            item_id,
+        )
+    if row is None:
+        return None
+    return Item(id=row["id"], name=row["name"], description=row["description"])
 
 
-async def create_item(session: AsyncSession, payload: ItemCreate) -> Item:
-    item = Item.model_validate(payload)
-    session.add(item)
-    await session.flush()
-    await session.refresh(item)
+async def create_item(conn: asyncpg.Connection, payload: ItemCreate) -> Item:  # type: ignore[type-arg]
+    with tracer.start_as_current_span("db.create_item"):
+        row = await conn.fetchrow(
+            "INSERT INTO items (name, description) VALUES ($1, $2)"
+            " RETURNING id, name, description",
+            payload.name,
+            payload.description,
+        )
+    item = Item(id=row["id"], name=row["name"], description=row["description"])  # type: ignore[index]
     logger.info("item_created", id=item.id, name=item.name)
     return item

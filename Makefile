@@ -1,12 +1,12 @@
 APP=main:app
 PORT=8000
 
-.PHONY: help install run dev lint format fix typecheck security audit test check trivy docker-build docker-run clean
+.PHONY: help install run dev lint format fix typecheck security audit vulture test check trivy docker-build docker-run clean
 
 help:
 	@echo "Available commands:"
 	@echo " install        Install dependencies"
-	@echo " run            Run API"
+	@echo " run            Run API (multi-worker)"
 	@echo " dev            Run API with reload"
 	@echo " lint           Run Ruff lint"
 	@echo " format         Format code"
@@ -14,6 +14,7 @@ help:
 	@echo " typecheck      Run Pyright"
 	@echo " security       Run Bandit"
 	@echo " audit          Run pip-audit"
+	@echo " vulture        Find dead code"
 	@echo " test           Run tests"
 	@echo " check          Run all checks"
 	@echo " trivy          Scan vulnerabilities"
@@ -25,7 +26,7 @@ install:
 	uv sync
 
 run:
-	uv run granian --interface asgi --host 0.0.0.0 --port $(PORT) $(APP)
+	uv run granian --interface asgi --host 0.0.0.0 --port $(PORT) --workers auto $(APP)
 
 dev:
 	uv run granian --reload --interface asgi --host 0.0.0.0 --port $(PORT) $(APP)
@@ -49,10 +50,13 @@ security:
 audit:
 	uv run pip-audit --desc
 
+vulture:
+	uv run vulture app config main.py vulture_whitelist.py --min-confidence 80
+
 test:
 	uv run pytest -q --cov=app --cov-report=term-missing --cov-fail-under=80
 
-check: lint typecheck security audit test
+check: lint typecheck security audit vulture test
 
 trivy:
 	trivy fs . --scanners vuln,secret,misconfig

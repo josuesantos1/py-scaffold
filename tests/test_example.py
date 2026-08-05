@@ -1,112 +1,146 @@
-from unittest.mock import AsyncMock, MagicMock
+"""Unit tests for the example app — views and service functions.
+
+Isolation strategy:
+- View tests: patch config.database.get_db (via patch_db fixture) AND patch
+  the service function so the test controls what the view returns.
+- Service tests: pass a pre-configured AsyncMock connection directly;
+  dict literals serve as asyncpg row substitutes (asyncpg rows are dict-like).
+"""
+
+from unittest.mock import AsyncMock
 
 from app.example import service
-from app.example import view as example_view
 from app.example.model import Item, ItemCreate
-from main import app
+
+# ── View tests ────────────────────────────────────────────────────────────────
 
 
-async def test_list_items_endpoint(client, monkeypatch):
+async def test_list_items_endpoint(client, patch_db, monkeypatch):
     fake_items = [Item(id=1, name="book", description="novel")]
 
-    async def fake_get_items(_session):
+    async def fake_get_items(_conn):
         return fake_items
 
-    async def override_get_db():
-        yield object()
+    monkeypatch.setattr(service, "get_items", fake_get_items)
 
-    monkeypatch.setattr(example_view.service, "get_items", fake_get_items)
-    app.dependency_overrides[example_view.get_db] = override_get_db
-
-    try:
-        response = await client.get("/items/")
-    finally:
-        app.dependency_overrides.pop(example_view.get_db, None)
-
+    response = await client.get("/v1/items/")
     assert response.status_code == 200
     assert response.json() == [{"id": 1, "name": "book", "description": "novel"}]
 
 
-async def test_get_item_not_found_endpoint(client, monkeypatch):
-    async def fake_get_item(_session, _item_id):
+async def test_get_item_endpoint(client, patch_db, monkeypatch):
+    fake_item = Item(id=7, name="chair", description=None)
+
+    async def fake_get_item(_conn, item_id):
+        return fake_item if item_id == 7 else None
+
+    monkeypatch.setattr(service, "get_item", fake_get_item)
+
+    response = await client.get("/v1/items/7")
+    assert response.status_code == 200
+    assert response.json() == {"id": 7, "name": "chair", "description": None}
+
+
+async def test_get_item_not_found_endpoint(client, patch_db, monkeypatch):
+    async def fake_get_item(_conn, _item_id):
         return None
 
-    async def override_get_db():
-        yield object()
+    monkeypatch.setattr(service, "get_item", fake_get_item)
 
-    monkeypatch.setattr(example_view.service, "get_item", fake_get_item)
-    app.dependency_overrides[example_view.get_db] = override_get_db
-
-    try:
-        response = await client.get("/items/999")
-    finally:
-        app.dependency_overrides.pop(example_view.get_db, None)
-
+    response = await client.get("/v1/items/999")
     assert response.status_code == 404
     assert response.json() == {"detail": "Item not found"}
 
 
-async def test_create_item_endpoint(client, monkeypatch):
+async def test_create_item_endpoint(client, patch_db, monkeypatch):
     created = Item(id=2, name="pen", description="blue")
 
-    async def fake_create_item(_session, _payload):
+    async def fake_create_item(_conn, _payload):
         return created
 
-    async def override_get_db():
-        yield object()
+    monkeypatch.setattr(service, "create_item", fake_create_item)
 
-    monkeypatch.setattr(example_view.service, "create_item", fake_create_item)
-    app.dependency_overrides[example_view.get_db] = override_get_db
-
-    try:
-        response = await client.post("/items/", json={"name": "pen", "description": "blue"})
-    finally:
-        app.dependency_overrides.pop(example_view.get_db, None)
-
+    response = await client.post("/v1/items/", json={"name": "pen", "description": "blue"})
     assert response.status_code == 201
     assert response.json() == {"id": 2, "name": "pen", "description": "blue"}
 
 
+async def test_create_item_invalid_body(client, patch_db):
+    response = await client.post(
+        "/v1/items/", content=b"not json", headers={"content-type": "application/json"}
+    )
+    assert response.status_code == 422
+
+
+# ── Service unit tests ────────────────────────────────────────────────────────
+
+
 async def test_service_get_items_returns_all():
-    expected = [Item(id=1, name="book", description="novel")]
+    rows = [
+        {"id": 1, "name": "book", "description": "novel"},
+        {"id": 2, "name": "pen", "description": None},
+    ]
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=rows)
 
-    class Result:
-        def all(self):
-            return expected
+    result = await service.get_items(conn)
 
-    session = AsyncMock()
-    session.exec = AsyncMock(return_value=Result())
-
-    result = await service.get_items(session)
-
-    assert result == expected
-
-
-async def test_service_get_item_by_id():
-    expected = Item(id=5, name="chair", description=None)
-    session = AsyncMock()
-    session.get = AsyncMock(return_value=expected)
-
-    result = await service.get_item(session, 5)
-
-    assert result == expected
+    assert len(result) == 2
+    assert result[0] == Item(id=1, name="book", description="novel")
+    assert result[1] == Item(id=2, name="pen", description=None)
+    conn.fetch.assert_awaited_once()
 
 
-async def test_service_create_item_flushes_and_refreshes():
-    session = AsyncMock()
-    session.add = MagicMock()
+async def test_service_get_items_empty():
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[])
+
+    result = await service.get_items(conn)
+
+    assert result == []
+
+
+async def test_service_get_item_found():
+    row = {"id": 5, "name": "chair", "description": None}
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value=row)
+
+    result = await service.get_item(conn, 5)
+
+    assert result == Item(id=5, name="chair", description=None)
+    conn.fetchrow.assert_awaited_once()
+
+
+async def test_service_get_item_not_found():
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value=None)
+
+    result = await service.get_item(conn, 999)
+
+    assert result is None
+
+
+async def test_service_create_item_returns_persisted_row():
+    row = {"id": 42, "name": "lamp", "description": "desk"}
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value=row)
+
     payload = ItemCreate(name="lamp", description="desk")
+    result = await service.create_item(conn, payload)
 
-    async def refresh_side_effect(item):
-        item.id = 42
+    assert result == Item(id=42, name="lamp", description="desk")
+    # Verify payload was passed to the INSERT
+    call_args = conn.fetchrow.call_args
+    assert "lamp" in call_args.args
+    assert "desk" in call_args.args
 
-    session.refresh = AsyncMock(side_effect=refresh_side_effect)
 
-    created = await service.create_item(session, payload)
+async def test_service_create_item_null_description():
+    row = {"id": 10, "name": "pin", "description": None}
+    conn = AsyncMock()
+    conn.fetchrow = AsyncMock(return_value=row)
 
-    session.add.assert_called_once()
-    session.flush.assert_awaited_once()
-    session.refresh.assert_awaited_once()
-    assert created.id == 42
-    assert created.name == "lamp"
-    assert created.description == "desk"
+    payload = ItemCreate(name="pin")
+    result = await service.create_item(conn, payload)
+
+    assert result.description is None

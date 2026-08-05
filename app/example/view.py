@@ -1,30 +1,57 @@
+"""HTTP handlers for the example app.
+
+Pattern:
+- Declare ``db: Database`` parameter — BlackSheep injects it per request.
+- Call ``async with db.connection() as conn:`` to acquire a DB connection.
+- Use module-level msgspec codecs (item_decoder / item_encoder) — no
+  per-request allocations.
+- Return explicit Response objects with pre-encoded bytes for full control
+  over serialisation.
+"""
+
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel.ext.asyncio.session import AsyncSession
+from blacksheep import Request, Response, Router
 
 from app.example import service
-from app.example.model import Item, ItemCreate
-from config.database import get_db
+from app.example.model import ItemCreate, item_decoder
+from config.di import Database
+from config.responses import created, not_found, ok, unprocessable
+
+PREFIX = "/v1/items"
+TAGS = ["items"]
 
 logger = structlog.get_logger()
 
-router = APIRouter()
+router = Router(prefix=PREFIX)
 
 
-@router.get("/", response_model=list[Item])
-async def list_items(session: AsyncSession = Depends(get_db)):
-    return await service.get_items(session)
+@router.get("/")
+async def list_items(db: Database) -> Response:
+    async with db.connection() as conn:
+        items = await service.get_items(conn)  # type: ignore[arg-type]
+    return ok(items)
 
 
-@router.post("/", response_model=Item, status_code=status.HTTP_201_CREATED)
-async def create_item(payload: ItemCreate, session: AsyncSession = Depends(get_db)):
-    return await service.create_item(session, payload)
-
-
-@router.get("/{item_id}", response_model=Item)
-async def get_item(item_id: int, session: AsyncSession = Depends(get_db)):
-    item = await service.get_item(session, item_id)
-    if not item:
+@router.get("/{item_id}")
+async def get_item(item_id: int, db: Database) -> Response:
+    async with db.connection() as conn:
+        item = await service.get_item(conn, item_id)  # type: ignore[arg-type]
+    if item is None:
         logger.warning("item_not_found", item_id=item_id)
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
-    return item
+        return not_found("Item not found")
+    return ok(item)
+
+
+@router.post("/")
+async def create_item(request: Request, db: Database) -> Response:
+    body = (await request.read()) or b""
+    try:
+        payload = item_decoder.decode(body)
+    except Exception as exc:
+        return unprocessable(str(exc))
+    async with db.connection() as conn:
+        item = await service.create_item(conn, payload)  # type: ignore[arg-type]
+    return created(item)
+
+
+__all__ = ["router", "service", "ItemCreate"]
