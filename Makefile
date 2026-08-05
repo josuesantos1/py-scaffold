@@ -1,7 +1,7 @@
 APP=main:app
 PORT=1112
 
-.PHONY: help install run dev lint format fix typecheck security audit vulture test check trivy docker-build docker-run clean k6-smoke k6-load k6-stress k6-soak benchmark
+.PHONY: help install run dev lint format fix typecheck security audit vulture test check trivy docker-build docker-run clean k6-smoke k6-load k6-stress k6-soak benchmark services-up services-down services-logs nginx-up nginx-down prometheus-up prometheus-down
 
 help:
 	@echo "Available commands:"
@@ -26,6 +26,13 @@ help:
 	@echo " k6-stress      k6 stress test (up to 300 VUs)"
 	@echo " k6-soak        k6 soak test   (20 VUs, 13 m)"
 	@echo " benchmark      pytest msgspec benchmarks"
+	@echo " services-up    Start postgres (+ create infra_backend network)"
+	@echo " services-down  Stop postgres"
+	@echo " services-logs  Follow postgres logs"
+	@echo " nginx-up       Start nginx (requires services-up first)"
+	@echo " nginx-down     Stop nginx"
+	@echo " prometheus-up  Start prometheus (requires services-up first)"
+	@echo " prometheus-down Stop prometheus"
 
 install:
 	uv sync
@@ -89,5 +96,26 @@ k6-soak:
 
 benchmark:
 	uv run pytest tests/benchmarks/ --benchmark-only -v
+
+services-up:
+	docker compose -f infra/services/postgres/docker-compose.yml up -d
+
+services-down:
+	docker compose -f infra/services/postgres/docker-compose.yml down
+
+services-logs:
+	docker compose -f infra/services/postgres/docker-compose.yml logs -f
+
+nginx-up:
+	docker compose -f infra/services/nginx/docker-compose.yml up -d
+
+nginx-down:
+	docker compose -f infra/services/nginx/docker-compose.yml down
+
+prometheus-up:
+	docker compose -f infra/services/prometheus/docker-compose.yml up -d
+
+prometheus-down:
+	docker compose -f infra/services/prometheus/docker-compose.yml down
 
 ci: check trivy

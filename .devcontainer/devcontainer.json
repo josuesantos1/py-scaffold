@@ -1,6 +1,7 @@
 {
   "name": "Py-Scaffold Dev Container",
   "dockerComposeFile": [
+    "../infra/services/postgres/docker-compose.yml",
     "docker-compose.yml"
   ],
   "service": "api",

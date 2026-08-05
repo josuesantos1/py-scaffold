@@ -1,0 +1,16 @@
+services:
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    networks:
+      - backend
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    volumes:
+      - ../../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+networks:
+  backend:
+    external: true
+    name: infra_backend

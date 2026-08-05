@@ -1,0 +1,28 @@
+services:
+  postgres:
+    container_name: postgres
+    image: postgres:16
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - backend
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+networks:
+  backend:
+    name: infra_backend
+
+volumes:
+  postgres_data:
+    name: infra_postgres_data

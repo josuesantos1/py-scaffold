@@ -3,7 +3,7 @@ services:
     build:
       context: ..
       dockerfile: .devcontainer/Dockerfile
-    container_name: fastapi-api
+    container_name: py-scaffold-api
     command: ["uv", "run", "granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "1112", "main:app"]
     depends_on:
       postgres:
@@ -18,53 +18,6 @@ services:
       - ..:/workspace:cached
     working_dir: /workspace
 
-  nginx:
-    container_name: nginx
-    depends_on:
-      api:
-        condition: service_started
-    image: nginx:latest
-    networks:
-      - backend
-    ports:
-      - "80:80"
-    volumes:
-      - ../infra/nginx/nginx.conf:/etc/nginx/nginx.conf
-
-  postgres:
-    container_name: postgres
-    environment:
-      POSTGRES_DB: app
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d app"]
-      interval: 5s
-      retries: 5
-      timeout: 5s
-    image: postgres:16
-    networks:
-      - backend
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: always
-
-  prometheus:
-    container_name: prometheus
-    image: prom/prometheus
-    networks:
-      - backend
-    ports:
-      - "9090:9090"
-    volumes:
-      - ../infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-
 networks:
   backend:
-    name: devcontainer_backend
-
-volumes:
-  postgres_data:
-    name: devcontainer_postgres_data
+    name: infra_backend
