@@ -146,6 +146,105 @@ jobs:
         sys.exit(1)
 
 
+def create_worker_ci_workflow(worker_name: str, skip_validation: bool = False) -> None:
+    validate_app_name(worker_name)
+
+    if not skip_validation:
+        worker_dir = Path("workers") / worker_name
+        if not worker_dir.exists():
+            print(f"✗ Error: Worker directory not found: {worker_dir}")
+            print(f"  Create the worker first with: python manager.py create-worker {worker_name}")
+            sys.exit(1)
+
+    workflows_dir = Path(".github/workflows")
+    workflows_dir.mkdir(parents=True, exist_ok=True)
+
+    workflow_file = workflows_dir / f"{worker_name}-worker-ci.yml"
+
+    workflow_content = f"""name: {worker_name.capitalize()} Worker - CI
+
+permissions:
+  contents: read
+
+concurrency:
+  group: {worker_name}-worker-ci-${{{{ github.ref }}}}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/{worker_name}/**'
+      - 'tests/workers/{worker_name}/**'
+      - 'tests/conftest.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/{worker_name}-worker-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'workers/{worker_name}/**'
+      - 'tests/workers/{worker_name}/**'
+      - 'tests/conftest.py'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/{worker_name}-worker-ci.yml'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Ruff lint
+        run: uv run ruff check workers/{worker_name}
+
+      - name: Run Ruff format check
+        run: uv run ruff format --check workers/{worker_name}
+
+      - name: Run Pyright
+        run: uv run pyright workers/{worker_name}
+
+      - name: Run Bandit security check
+        run: uv run bandit -r workers/{worker_name} -ll
+
+      - name: Run tests
+        run: >
+          uv run pytest tests/workers/{worker_name} -v
+          --cov=workers/{worker_name}
+          --cov-report=term-missing --cov-fail-under=80
+"""
+
+    if workflow_file.exists():
+        print(f"⚠ Warning: Workflow already exists: {workflow_file}")
+        response = input("Overwrite? [y/N]: ")
+        if response.lower() not in ("y", "yes"):
+            print("✗ Aborted")
+            sys.exit(0)
+
+    try:
+        workflow_file.write_text(workflow_content)
+        print(f"✓ Created CI workflow: {workflow_file}")
+    except OSError as e:
+        print(f"✗ Error writing workflow file: {e}")
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Create GitHub Actions CI workflow for an app")

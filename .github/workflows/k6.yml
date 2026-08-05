@@ -1,0 +1,133 @@
+name: Load Tests — k6
+
+permissions:
+  contents: read
+
+concurrency:
+  group: k6-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'load-tests/**'
+      - 'app/**'
+      - 'config/**'
+      - 'main.py'
+      - '.github/workflows/k6.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'load-tests/**'
+      - 'app/**'
+      - 'config/**'
+      - 'main.py'
+      - '.github/workflows/k6.yml'
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'k6 scenario to run'
+        required: true
+        default: smoke
+        type: choice
+        options:
+          - smoke
+          - load
+          - stress
+          - soak
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: app
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://app:app@localhost:5432/app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run migrations
+        run: uv run alembic upgrade head
+
+      - name: Start API
+        run: |
+          uv run granian --interface asgi --host 0.0.0.0 --port 1112 main:app \
+            > /tmp/api.log 2>&1 &
+          echo $! > /tmp/api.pid
+
+      - name: Wait for API
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:1112/admin/health > /dev/null 2>&1; then
+              echo "API ready after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "API did not start in time"
+              cat /tmp/api.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Install k6
+        run: |
+          sudo gpg --no-default-keyring \
+            --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] \
+            https://dl.k6.io/deb stable main" \
+            | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update -q
+          sudo apt-get install -q k6
+
+      - name: Determine scenario
+        id: scenario
+        run: echo "name=${{ github.event.inputs.scenario || 'smoke' }}" >> "$GITHUB_OUTPUT"
+
+      - name: Run k6 ${{ steps.scenario.outputs.name }}
+        run: |
+          k6 run \
+            --env K6_BASE_URL=http://localhost:1112 \
+            --summary-export=k6-summary.json \
+            load-tests/k6/${{ steps.scenario.outputs.name }}.js
+
+      - name: Upload k6 summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-${{ steps.scenario.outputs.name }}-${{ github.run_number }}
+          path: k6-summary.json
+          if-no-files-found: ignore
+
+      - name: Dump API logs on failure
+        if: failure()
+        run: cat /tmp/api.log

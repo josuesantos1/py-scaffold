@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 from rich.tree import Tree
 
-from scripts.create_ci import create_ci_workflow, validate_app_name
+from scripts.create_ci import create_ci_workflow, create_worker_ci_workflow, validate_app_name
 
 cli = typer.Typer(
     help="Project manager for py-scaffold.",
@@ -211,6 +211,8 @@ def create_ci(
 def create_worker(
     worker_name: str = typer.Argument(..., help="Worker name in snake_case"),
     subject: str = typer.Option(..., "--subject", help="NATS subject (e.g. scraper.execute)"),
+    with_ci: bool = typer.Option(False, "--with-ci", help="Create CI workflow"),
+    no_ci: bool = typer.Option(False, "--no-ci", help="Skip CI workflow prompt"),
 ) -> None:
     """Scaffold a NATS JetStream worker."""
     validate_app_name(worker_name)
@@ -318,6 +320,12 @@ def create_worker(
     console.print(f"\n  Subject : [cyan]{subject}[/]")
     console.print(f"  Consumer: [cyan]{worker_name}[/]")
     console.print(f"\n  Run with: [dim]uv run python -m workers.{worker_name}.worker[/]\n")
+
+    if with_ci or (
+        not no_ci
+        and typer.confirm(f"\nCreate GitHub Actions CI workflow for '{worker_name}'?", default=True)
+    ):
+        create_worker_ci_workflow(worker_name, skip_validation=True)
 
 
 if __name__ == "__main__":
