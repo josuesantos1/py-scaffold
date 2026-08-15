@@ -1,154 +1,221 @@
 # Py-Scaffold
 
-Modern Python API scaffold with FastAPI, SQLAlchemy, Alembic, and comprehensive tooling.
+High-performance Python API scaffold: BlackSheep + Granian + AsyncPG + msgspec.
 
-## Features
+## Stack
 
-- **FastAPI** - Modern, fast web framework
-- **SQLAlchemy 2.0** - Async ORM with Alembic migrations
-- **Granian** - High-performance ASGI server
-- **Structured Logging** - JSON logging with structlog
-- **Metrics** - Prometheus metrics built-in
-- **Security** - Bandit, pip-audit, Trivy scanning
-- **Code Quality** - Ruff (linting + formatting), Pyright (type checking)
-- **Testing** - pytest with async support and coverage
-- **DevContainer** - Ready-to-use development environment
+| Layer | Library |
+| --- | --- |
+| Framework | BlackSheep 2.x |
+| Server | Granian (ASGI, multi-worker) |
+| Database | asyncpg (raw SQL, no ORM) |
+| Serialisation | msgspec (zero-copy JSON) |
+| Migrations | Alembic |
+| Logging | structlog (JSON) |
+| Metrics | prometheus-client |
+| Tracing | OpenTelemetry |
+| DI | rodi (BlackSheep built-in) |
 
 ## Quick Start
 
-### Development (DevContainer - Recommended)
-
-1. Open in VSCode
-2. Click "Reopen in Container"
-3. Dependencies install automatically via `postCreateCommand`
-4. Run: `make dev`
-
-### Local Development
+### DevContainer (recommended)
 
 ```bash
-# Install dependencies
-make install
+# 1. Start infrastructure services
+make services-up
 
-# Copy environment file (Linux/macOS)
-cp .env.example .env
+# 2. Open in VS Code → "Reopen in Container"
+#    Postgres + API start automatically.
 
-# Copy environment file (Windows PowerShell)
-Copy-Item .env.example .env
-
-# Run in development mode
+# 3. Inside the container
+uv run alembic upgrade head
 make dev
 ```
 
-## Available Commands
+### Local
 
 ```bash
-make install        # Install dependencies
-make run            # Run API in production mode
-make dev            # Run API with hot reload
-make lint           # Run Ruff linter
-make format         # Format code with Ruff
-make fix            # Auto-fix lint issues and format
-make typecheck      # Run Pyright type checker
-make security       # Run Bandit security scan
-make audit          # Run pip-audit for vulnerabilities
-make test           # Run tests with coverage (80% minimum)
-make check          # Run all checks (lint + typecheck + security + audit + test)
-make trivy          # Scan with Trivy
-make clean          # Clean cache files
-make ci             # Run check + trivy
+make install
+make services-up          # postgres on :5432
+uv run alembic upgrade head
+make dev                  # API on :1112 with reload
+```
+
+## Commands
+
+```bash
+make install          Install dependencies
+make run              Run API (multi-worker, auto workers)
+make dev              Run API with hot reload
+make lint             Ruff lint
+make format           Ruff format
+make fix              Auto-fix lint + format
+make typecheck        Pyright
+make security         Bandit
+make audit            pip-audit
+make vulture          Dead code check
+make test             pytest + coverage (≥ 80 %)
+make check            lint + typecheck + security + audit + vulture + test
+make trivy            Trivy vulnerability scan
+make ci               check + trivy
+make clean            Remove cache files
+```
+
+### Infrastructure
+
+```bash
+make services-up      Start postgres (creates infra_backend network)
+make services-down    Stop postgres
+make services-logs    Follow postgres logs
+make nginx-up         Start nginx reverse proxy
+make nginx-down       Stop nginx
+make prometheus-up    Start Prometheus
+make prometheus-down  Stop Prometheus
+```
+
+### Load Tests
+
+```bash
+make k6-smoke         1 VU · 30 s  — sanity check (runs in CI on every push)
+make k6-load          50 VUs · 5 m — normal production simulation
+make k6-stress        up to 300 VUs — find the breaking point
+make k6-soak          20 VUs · 13 m — leak / pool exhaustion detection
+make benchmark        pytest msgspec micro-benchmarks
+```
+
+Override the target URL:
+
+```bash
+K6_BASE_URL=http://staging:1112 make k6-load
 ```
 
 ## Project Structure
 
-```
+```text
 .
-├── app/                  # Application modules
-│   ├── admin/
-│   └── example/
-├── config/               # Configuration
-│   ├── database.py       # Database session/engine
-│   ├── exceptions.py     # Exception handlers
-│   ├── log.py            # Structured logging setup
-│   ├── metrics.py        # Prometheus collectors
-│   └── settings.py       # Pydantic settings
-├── migrations/           # Alembic migrations
-├── tests/                # Test suite
-├── main.py               # FastAPI entrypoint
-├── manager.py            # App/CI scaffolding helper
-├── Makefile              # Development commands
-└── pyproject.toml        # Dependencies and tool config
+├── app/
+│   ├── admin/            health, ready, metrics endpoints
+│   └── example/          example CRUD app (items)
+├── config/
+│   ├── database.py       asyncpg pool + get_db context manager
+│   ├── di.py             Database injectable (rodi)
+│   ├── exceptions.py     AppException + handlers
+│   ├── log.py            structlog JSON setup
+│   ├── metrics.py        Prometheus collectors
+│   ├── responses.py      pre-built response helpers
+│   └── settings.py       msgspec Settings (env vars)
+├── infra/
+│   ├── nginx/            nginx.conf
+│   ├── prometheus/       prometheus.yml
+│   └── services/
+│       ├── postgres/     docker-compose.yml (creates infra_backend network)
+│       ├── nginx/        docker-compose.yml (joins infra_backend)
+│       └── prometheus/   docker-compose.yml (joins infra_backend)
+├── load-tests/
+│   └── k6/
+│       ├── lib/helpers.js  shared checks, thresholds, randomItem()
+│       ├── smoke.js
+│       ├── load.js
+│       ├── stress.js
+│       └── soak.js
+├── migrations/           Alembic migrations
+├── prod/                 Production Dockerfile
+├── tests/
+│   ├── benchmarks/       msgspec encode/decode benchmarks
+│   ├── conftest.py       shared fixtures (client, patch_db)
+│   ├── test_example.py   unit + view tests
+│   ├── test_integration.py full ASGI stack tests
+│   └── test_settings.py
+├── workers/              NATS JetStream workers (scaffolded)
+├── main.py               ASGI entry point + auto-discovery router
+├── manager.py            CLI scaffold (create-app, create-worker, create-ci)
+├── Makefile
+└── pyproject.toml
 ```
+
+## Auto-discovery Routing
+
+Any `app/<name>/view.py` that exports `PREFIX` and `router` is mounted automatically — no changes to `main.py` required:
+
+```python
+PREFIX = "/v1/items"
+TAGS   = ["items"]
+router = Router(prefix=PREFIX)
+```
+
+## Dependency Injection
+
+Route handlers declare `db: Database` and BlackSheep injects it per request:
+
+```python
+@router.get("/")
+async def list_items(db: Database) -> Response:
+    async with db.connection() as conn:
+        items = await service.get_items(conn)
+    return ok(items)
+```
+
+## Scaffolding
+
+```bash
+# New app — auto-discovers router, prompts for CI workflow
+uv run python manager.py create-app payments
+
+# New NATS worker — prompts for CI workflow
+uv run python manager.py create-worker invoice --subject billing.invoice
+
+# Generate CI workflow for an existing app or worker
+uv run python manager.py create-ci payments
+```
+
+## Endpoints
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/admin/health` | Health check |
+| GET | `/admin/ready` | Readiness probe |
+| GET | `/admin/metrics` | Prometheus metrics |
+| GET | `/v1/items/` | List items |
+| GET | `/v1/items/{id}` | Get item |
+| POST | `/v1/items/` | Create item |
+
+## CI Workflows
+
+Each app and worker gets its own workflow under `.github/workflows/` that triggers **only on changes to that module**:
+
+| Workflow | Trigger paths |
+| --- | --- |
+| `core-ci.yml` | `main.py`, `config/**`, `migrations/**` |
+| `{name}-ci.yml` | `app/{name}/**`, `tests/test_{name}.py` |
+| `{name}-worker-ci.yml` | `workers/{name}/**`, `tests/workers/{name}/**` |
+| `k6.yml` | `load-tests/**`, `app/**` — smoke on push, any scenario via `workflow_dispatch` |
 
 ## Configuration
 
-All configuration is managed via environment variables using pydantic-settings.
-
-Copy `.env.example` to `.env` and adjust:
+All settings are read from environment variables via msgspec:
 
 ```bash
-# App
 APP_NAME=Py-Scaffold API
 DEBUG=false
-
-# Database
 DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/dbname
-
-# CORS (comma-separated)
 CORS_ORIGINS=*
-
-# Logging
 LOG_LEVEL=INFO
 ```
 
 ## Database Migrations
 
 ```bash
-# Create a new migration
-alembic revision --autogenerate -m "description"
-
-# Apply migrations
+alembic revision --autogenerate -m "add items table"
 alembic upgrade head
-
-# Rollback
 alembic downgrade -1
 ```
 
-## Endpoints
+## Security
 
-- `GET /admin/health` - Health check
-- `GET /admin/ready` - Readiness probe
-- `GET /admin/metrics` - Prometheus metrics
-- `GET /docs` - OpenAPI documentation
-
-## Testing
-
-```bash
-# Run tests
-make test
-
-# Run tests with verbose output
-uv run pytest -v
-
-# Run specific test
-uv run pytest tests/test_health.py
-```
-
-## CI/CD
-
-The project includes a `make ci` command that runs all checks:
-
-```bash
-make ci  # Runs: lint, typecheck, security, audit, test, trivy
-```
-
-## Security Scanning
-
-Multiple layers of security scanning:
-
-- **Bandit** - Python code security issues
-- **pip-audit** - Dependency vulnerabilities
-- **Trivy** - Comprehensive vulnerability scanning
-- **Ruff** - Security-related linting rules (S prefix)
-
-## License
-
+| Tool | Scope |
+| --- | --- |
+| Bandit | Python source (SAST) |
+| pip-audit | Dependency CVEs |
+| Trivy | Full filesystem + container |
+| detect-secrets | Secret scanning (pre-commit) |
+| Ruff S-rules | Security linting |
