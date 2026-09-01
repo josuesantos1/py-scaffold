@@ -3,8 +3,8 @@
 Pattern:
 - Declare ``db: Database`` parameter — BlackSheep injects it per request.
 - Call ``async with db.connection() as conn:`` to acquire a DB connection.
-- Use module-level msgspec codecs (item_decoder / item_encoder) — no
-  per-request allocations.
+- Use the module-level msgspec codec (item_decoder) — no per-request
+  allocations.
 - Return explicit Response objects with pre-encoded bytes for full control
   over serialisation.
 """

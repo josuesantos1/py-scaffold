@@ -15,4 +15,3 @@ class Item(msgspec.Struct, frozen=True, gc=False):
 
 
 item_decoder = msgspec.json.Decoder(ItemCreate)
-item_encoder = msgspec.json.Encoder()
