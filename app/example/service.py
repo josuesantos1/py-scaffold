@@ -2,40 +2,22 @@
 
 import asyncpg
 import structlog
-from opentelemetry import trace
 
+from app.example import repository
 from app.example.model import Item, ItemCreate
 
 logger = structlog.get_logger()
-tracer = trace.get_tracer("app.example")
 
 
 async def get_items(conn: asyncpg.Connection) -> list[Item]:  # type: ignore[type-arg]
-    with tracer.start_as_current_span("db.get_items"):
-        rows = await conn.fetch("SELECT id, name, description FROM items ORDER BY id")
-    return [Item(id=r["id"], name=r["name"], description=r["description"]) for r in rows]
+    return await repository.fetch_items(conn)
 
 
 async def get_item(conn: asyncpg.Connection, item_id: int) -> Item | None:  # type: ignore[type-arg]
-    with tracer.start_as_current_span("db.get_item") as span:
-        span.set_attribute("item.id", item_id)
-        row = await conn.fetchrow(
-            "SELECT id, name, description FROM items WHERE id = $1",
-            item_id,
-        )
-    if row is None:
-        return None
-    return Item(id=row["id"], name=row["name"], description=row["description"])
+    return await repository.fetch_item(conn, item_id)
 
 
 async def create_item(conn: asyncpg.Connection, payload: ItemCreate) -> Item:  # type: ignore[type-arg]
-    with tracer.start_as_current_span("db.create_item"):
-        row = await conn.fetchrow(
-            "INSERT INTO items (name, description) VALUES ($1, $2)"
-            " RETURNING id, name, description",
-            payload.name,
-            payload.description,
-        )
-    item = Item(id=row["id"], name=row["name"], description=row["description"])  # type: ignore[index]
+    item = await repository.insert_item(conn, payload)
     logger.info("item_created", id=item.id, name=item.name)
     return item

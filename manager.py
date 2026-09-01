@@ -94,17 +94,13 @@ def create_app(
             encoding="utf-8",
         )
 
-        (app_dir / "service.py").write_text(
-            f'"""Business logic for the {app_name} app.\n\n'
-            "Functions accept an asyncpg.Connection directly — no ORM, no session.\n"
-            '"""\n\n'
+        (app_dir / "repository.py").write_text(
+            f'"""Database access for the {app_name} app."""\n\n'
             "import asyncpg\n"
-            "import structlog\n"
             "from opentelemetry import trace\n\n"
-            f"from app.{app_name}.model import {model_name}, {model_name}Create\n\n"
-            "logger = structlog.get_logger()\n"
+            f"from app.{app_name}.model import {model_name}\n\n"
             f'tracer = trace.get_tracer("app.{app_name}")\n\n\n'
-            f"async def get_all(conn: asyncpg.Connection) -> list[{model_name}]:  "
+            f"async def fetch_all(conn: asyncpg.Connection) -> list[{model_name}]:  "
             "# type: ignore[type-arg]\n"
             f'    """Return all {app_name} records ordered by id."""\n'
             f'    with tracer.start_as_current_span("db.get_all_{app_name}"):\n'
@@ -112,6 +108,22 @@ def create_app(
             f'            "SELECT id, name FROM {app_name} ORDER BY id"\n'
             "        )\n"
             f"    return [{model_name}(id=r[\"id\"], name=r[\"name\"]) for r in rows]\n",
+            encoding="utf-8",
+        )
+
+        (app_dir / "service.py").write_text(
+            f'"""Business logic for the {app_name} app.\n\n'
+            "Delegates database access to repository.py.\n"
+            '"""\n\n'
+            "import asyncpg\n"
+            "import structlog\n\n"
+            f"from app.{app_name} import repository\n"
+            f"from app.{app_name}.model import {model_name}\n\n"
+            "logger = structlog.get_logger()\n\n\n"
+            f"async def get_all(conn: asyncpg.Connection) -> list[{model_name}]:  "
+            "# type: ignore[type-arg]\n"
+            f'    """Return all {app_name} records ordered by id."""\n'
+            "    return await repository.fetch_all(conn)\n",
             encoding="utf-8",
         )
 
@@ -182,7 +194,7 @@ def create_app(
 
     tree = Tree(f"[bold green]✓[/] Created [bold]{app_name}[/]")
     app_branch = tree.add(f"[dim]app/{app_name}/[/]")
-    for f in ("__init__.py", "model.py", "service.py", "view.py"):
+    for f in ("__init__.py", "model.py", "repository.py", "service.py", "view.py"):
         app_branch.add(f)
     test_branch = tree.add(f"[dim]tests/{app_name}/[/]")
     test_branch.add(f"test_{app_name}.py")
