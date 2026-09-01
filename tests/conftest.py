@@ -13,14 +13,16 @@ from main import app
 
 @pytest.fixture(autouse=True)
 def _no_real_db(monkeypatch):
-    """Block real database connections for every test.
+    """Block real database and NATS connections for every test.
 
     BlackSheep fires on_start on the first HTTP request, which calls
-    init_pool(). main.py imports init_pool/close_pool by name, so we
-    patch the references in main's namespace (not config.database).
+    init_pool()/connect_nats(). main.py imports these by name, so we
+    patch the references in main's namespace (not config.database/config.nats).
     """
     monkeypatch.setattr(_main, "init_pool", AsyncMock())
     monkeypatch.setattr(_main, "close_pool", AsyncMock())
+    monkeypatch.setattr(_main, "connect_nats", AsyncMock())
+    monkeypatch.setattr(_main, "close_nats", AsyncMock())
 
 
 @pytest.fixture

@@ -8,6 +8,8 @@ from pathlib import Path
 
 import structlog
 from blacksheep import Application, Request, Response
+from blacksheep.server.openapi.v3 import OpenAPIHandler
+from openapidocs.v3 import Info
 from structlog.contextvars import bind_contextvars, clear_contextvars
 
 from config.database import close_pool, init_pool
@@ -15,6 +17,7 @@ from config.di import configure_services
 from config.exceptions import AppException
 from config.log import setup_logging
 from config.metrics import REQUEST_COUNT, REQUEST_LATENCY
+from config.nats import close_nats, connect_nats
 from config.responses import error
 from config.settings import settings
 
@@ -34,14 +37,25 @@ _SKIP_METRICS: frozenset[str] = frozenset(
 
 _app = Application(show_error_details=settings.debug)
 
+docs = OpenAPIHandler(
+    info=Info(
+        title="My API",
+        version="1.0.0",
+    )
+)
+
+docs.bind_app(_app)
+
 
 async def _startup(_application: Application) -> None:
     setup_logging()
     await init_pool()
+    await connect_nats()
     logger.info("application_started", app=settings.app_name, version=settings.app_version)
 
 
 async def _shutdown(_application: Application) -> None:
+    await close_nats()
     await close_pool()
     logger.info("application_stopped")
 

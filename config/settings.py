@@ -11,6 +11,7 @@ class Settings(msgspec.Struct, frozen=True):
     app_version: str = "0.1.0"
     debug: bool = False
     database_url: str = "postgresql+asyncpg://user:password@localhost:5432/dbname"
+    nats_url: str = "nats://localhost:4222"
     cors_origins: list[str] = msgspec.field(default_factory=lambda: ["*"])
     cors_allow_credentials: bool = False
     log_level: str = "INFO"
@@ -40,6 +41,8 @@ def _parse(env: dict[str, str]) -> Settings:
         data["debug"] = v.lower() in ("1", "true", "yes", "on")
     if v := env.get("DATABASE_URL"):
         data["database_url"] = v
+    if v := env.get("NATS_URL"):
+        data["nats_url"] = v
     if v := env.get("CORS_ORIGINS"):
         data["cors_origins"] = [o.strip() for o in v.split(",") if o.strip()]
     if v := env.get("CORS_ALLOW_CREDENTIALS"):
